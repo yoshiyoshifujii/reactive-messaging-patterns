@@ -1,6 +1,6 @@
 package com.github.yoshiyoshifujii.reactive_messaging_patterns.idempotent_receiver
 
-import akka.actor.typed.scaladsl.{ ActorContext, Behaviors }
+import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ ActorRef, Behavior }
 
 final case class AccountId(value: String)
@@ -57,22 +57,13 @@ object Account {
           transactions += (withdraw.transactionId -> transaction)
           Behaviors.same
         case QueryBalance(replyTo) =>
-          replyTo ! calculateBalance(accountId, transactions)
+          val amount = transactions.values.foldLeft(Money(0)) { (acc, transaction) =>
+            acc + transaction.amount
+          }
+          context.log.info(s"Balance: $amount")
+          replyTo ! AccountBalance(accountId, amount)
           Behaviors.same
       }
     }
-
-  private def calculateBalance(
-      accountId: AccountId,
-      transactions: scala.collection.mutable.Map[TransactionId, Transaction]
-  )(implicit
-      context: ActorContext[Command]
-  ): AccountBalance = {
-    val amount = transactions.values.foldLeft(Money(0)) { (acc, transaction) =>
-      acc + transaction.amount
-    }
-    context.log.info(s"Balance: $amount")
-    AccountBalance(accountId, amount)
-  }
 
 }
