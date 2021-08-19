@@ -14,6 +14,24 @@ object RecipientList {
       discountPrice: Double
   )
 
+  final case class RequestPriceQuoteCommand(
+      rfqId: String,
+      itemId: String,
+      retailPrice: Double,
+      orderTotalRetailPrice: Double,
+      reply: ActorRef[PriceQuote]
+  ) {
+
+    private def discount(discountPercentage: Double => Double): Double =
+      discountPercentage(orderTotalRetailPrice) * retailPrice
+
+    private def discountPrice(discountPercentage: Double => Double): Double =
+      retailPrice - discount(discountPercentage)
+
+    def toPriceQuote(discountPercentage: Double => Double): PriceQuote =
+      PriceQuote(rfqId, itemId, retailPrice, discountPrice(discountPercentage))
+  }
+
   sealed trait Command
 
   final case class RequestForQuotation(
@@ -26,28 +44,10 @@ object RecipientList {
 
   final case class PriceQuoteInterest(
       path: String,
-      quoteProcessor: ActorRef[Command],
+      quoteProcessor: ActorRef[RequestPriceQuoteCommand],
       lowTotalRetail: Double,
       highTotalRetail: Double
   ) extends Command
-
-  final case class RequestPriceQuote(
-      rfqId: String,
-      itemId: String,
-      retailPrice: Double,
-      orderTotalRetailPrice: Double,
-      reply: ActorRef[PriceQuote]
-  ) extends Command {
-
-    private def discount(discountPercentage: Double => Double): Double =
-      discountPercentage(orderTotalRetailPrice) * retailPrice
-
-    private def discountPrice(discountPercentage: Double => Double): Double =
-      retailPrice - discount(discountPercentage)
-
-    def toPriceQuote(discountPercentage: Double => Double): PriceQuote =
-      PriceQuote(rfqId, itemId, retailPrice, discountPrice(discountPercentage))
-  }
 
   object MountaineeringSuppliesOrderProcessor {
 
@@ -70,7 +70,7 @@ object RecipientList {
                 context.log.info(
                   "OrderProcessor: " + rfq.rfqId + " item: " + retailItem.itemId + " to: " + recipient.path.toString
                 )
-                recipient ! RequestPriceQuote(
+                recipient ! RequestPriceQuoteCommand(
                   rfq.rfqId,
                   retailItem.itemId,
                   retailItem.retailPrice,
@@ -80,27 +80,31 @@ object RecipientList {
               }
             }
             Behaviors.same
-          case message =>
-            context.log.info(s"OrderProcessor: received unexpected message: $message")
-            Behaviors.same
         }
       }
   }
 
+  object PriceQuotesActor {
+
+    def generate(
+        interestRegistrar: ActorRef[Command],
+        self: ActorRef[RequestPriceQuoteCommand],
+        lowTotalRetail: Double,
+        highTotalRetail: Double
+    )(discountPercentage: Double => Double): Behavior[RequestPriceQuoteCommand] = {
+      interestRegistrar ! PriceQuoteInterest(self.path.toString, self, lowTotalRetail, highTotalRetail)
+      Behaviors.receiveMessagePartial { case rpq: RequestPriceQuoteCommand =>
+        rpq.reply ! rpq.toPriceQuote(discountPercentage)
+        Behaviors.same
+      }
+    }
+  }
+
   object BudgetHikersPriceQuotes {
 
-    def behavior(interestRegistrar: ActorRef[Command]): Behavior[Command] =
+    def behavior(interestRegistrar: ActorRef[Command]): Behavior[RequestPriceQuoteCommand] =
       Behaviors.setup { context =>
-        interestRegistrar ! PriceQuoteInterest(context.self.path.toString, context.self, 1.00, 1_000.00)
-
-        Behaviors.receiveMessage {
-          case rpq: RequestPriceQuote =>
-            rpq.reply ! rpq.toPriceQuote(discountPercentage)
-            Behaviors.same
-          case message =>
-            context.log.info(s"BudgetHikersPriceQuotes: received unexpected message: $message")
-            Behaviors.same
-        }
+        PriceQuotesActor.generate(interestRegistrar, context.self, 1.00, 1_000.00)(discountPercentage)
       }
 
     private def discountPercentage(orderTotalRetailPrice: Double): Double = {
@@ -114,18 +118,9 @@ object RecipientList {
 
   object HighSierraPriceQuotes {
 
-    def behavior(interestRegistrar: ActorRef[Command]): Behavior[Command] =
+    def behavior(interestRegistrar: ActorRef[Command]): Behavior[RequestPriceQuoteCommand] =
       Behaviors.setup { context =>
-        interestRegistrar ! PriceQuoteInterest(context.self.path.toString, context.self, 100.00, 10000.00)
-
-        Behaviors.receiveMessage {
-          case rpq: RequestPriceQuote =>
-            rpq.reply ! rpq.toPriceQuote(discountPercentage)
-            Behaviors.same
-          case message =>
-            context.log.info(s"HighSierraPriceQuotes: received unexpected message: $message")
-            Behaviors.same
-        }
+        PriceQuotesActor.generate(interestRegistrar, context.self, 100.00, 10000.00)(discountPercentage)
       }
 
     private def discountPercentage(orderTotalRetailPrice: Double): Double = {
@@ -139,18 +134,9 @@ object RecipientList {
 
   object MountainAscentPriceQuotes {
 
-    def behavior(interestRegistrar: ActorRef[Command]): Behavior[Command] =
+    def behavior(interestRegistrar: ActorRef[Command]): Behavior[RequestPriceQuoteCommand] =
       Behaviors.setup { context =>
-        interestRegistrar ! PriceQuoteInterest(context.self.path.toString, context.self, 70.00, 5000.00)
-
-        Behaviors.receiveMessage {
-          case rpq: RequestPriceQuote =>
-            rpq.reply ! rpq.toPriceQuote(discountPercentage)
-            Behaviors.same
-          case message =>
-            context.log.info(s"MountainAscentPriceQuotes: received unexpected message: $message")
-            Behaviors.same
-        }
+        PriceQuotesActor.generate(interestRegistrar, context.self, 70.00, 5000.00)(discountPercentage)
       }
 
     private def discountPercentage(orderTotalRetailPrice: Double) = {
@@ -167,18 +153,9 @@ object RecipientList {
 
   object PinnacleGearPriceQuotes {
 
-    def behavior(interestRegistrar: ActorRef[Command]): Behavior[Command] =
+    def behavior(interestRegistrar: ActorRef[Command]): Behavior[RequestPriceQuoteCommand] =
       Behaviors.setup { context =>
-        interestRegistrar ! PriceQuoteInterest(context.self.path.toString, context.self, 250.00, 500000.00)
-
-        Behaviors.receiveMessage {
-          case rpq: RequestPriceQuote =>
-            rpq.reply ! rpq.toPriceQuote(discountPercentage)
-            Behaviors.same
-          case message =>
-            context.log.info(s"PinnacleGearPriceQuotes: received unexpected message: $message")
-            Behaviors.same
-        }
+        PriceQuotesActor.generate(interestRegistrar, context.self, 250.00, 500_000.00)(discountPercentage)
       }
 
     private def discountPercentage(orderTotalRetailPrice: Double) = {
@@ -195,18 +172,9 @@ object RecipientList {
 
   object RockBottomOuterwearPriceQuotes {
 
-    def behavior(interestRegistrar: ActorRef[Command]): Behavior[Command] =
+    def behavior(interestRegistrar: ActorRef[Command]): Behavior[RequestPriceQuoteCommand] =
       Behaviors.setup { context =>
-        interestRegistrar ! PriceQuoteInterest(context.self.path.toString, context.self, 0.50, 7500.00)
-
-        Behaviors.receiveMessage {
-          case rpq: RequestPriceQuote =>
-            rpq.reply ! rpq.toPriceQuote(discountPercentage)
-            Behaviors.same
-          case message =>
-            context.log.info(s"RockBottomOuterwearPriceQuotes: received unexpected message: $message")
-            Behaviors.same
-        }
+        PriceQuotesActor.generate(interestRegistrar, context.self, 0.50, 7500.00)(discountPercentage)
       }
 
     private def discountPercentage(orderTotalRetailPrice: Double) = {

@@ -32,12 +32,12 @@ class RecipientListSpec extends AnyFreeSpec with BeforeAndAfterAll {
         ),
         probe.ref
       )
-      println(s"0 - ${probe.expectMessageType[PriceQuote]}")
       val result1 = probe.expectMessageType[PriceQuote]
+      println(s"0 - ${result1}")
       assert(result1.rfqId === "123")
       assert(result1.itemId === "1")
       assert(result1.retailPrice === 29.95)
-      assert(result1.discountPrice > 29.00)
+      assert(result1.discountPrice === 29.351)
 
       orderProcessor ! RequestForQuotation(
         "125",
@@ -49,7 +49,7 @@ class RecipientListSpec extends AnyFreeSpec with BeforeAndAfterAll {
         ),
         probe.ref
       )
-      println(s"A - ${probe.expectMessageType[PriceQuote]}")
+      probe.expectMessage(PriceQuote("123", "2", 99.95, 97.95100000000001))
 
       orderProcessor ! RequestForQuotation(
         "129",
@@ -61,7 +61,7 @@ class RecipientListSpec extends AnyFreeSpec with BeforeAndAfterAll {
         ),
         probe.ref
       )
-      println(s"B - ${probe.expectMessageType[PriceQuote]}")
+      probe.expectMessage(PriceQuote("123", "3", 14.95, 14.651))
 
       orderProcessor ! RequestForQuotation(
         "135",
@@ -72,7 +72,7 @@ class RecipientListSpec extends AnyFreeSpec with BeforeAndAfterAll {
         ),
         probe.ref
       )
-      println(s"C - ${probe.expectMessageType[PriceQuote]}")
+      probe.expectMessage(PriceQuote("123", "1", 29.95, 29.351))
 
       orderProcessor ! RequestForQuotation(
         "140",
@@ -85,7 +85,7 @@ class RecipientListSpec extends AnyFreeSpec with BeforeAndAfterAll {
         ),
         probe.ref
       )
-      println(s"D - ${probe.expectMessageType[PriceQuote]}")
+      probe.expectMessage(PriceQuote("123", "2", 99.95, 97.95100000000001))
     }
   }
 }
