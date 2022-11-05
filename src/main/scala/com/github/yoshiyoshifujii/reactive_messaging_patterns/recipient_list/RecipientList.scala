@@ -104,7 +104,7 @@ object RecipientList {
 
     def behavior(interestRegistrar: ActorRef[Command]): Behavior[RequestPriceQuoteCommand] =
       Behaviors.setup { context =>
-        PriceQuotesActor.generate(interestRegistrar, context.self, 1.00, 1_000.00)(discountPercentage)
+        PriceQuotesActor.generate(interestRegistrar, context.self, 1.00, 1000.00)(discountPercentage)
       }
 
     private def discountPercentage(orderTotalRetailPrice: Double): Double = {
@@ -155,7 +155,7 @@ object RecipientList {
 
     def behavior(interestRegistrar: ActorRef[Command]): Behavior[RequestPriceQuoteCommand] =
       Behaviors.setup { context =>
-        PriceQuotesActor.generate(interestRegistrar, context.self, 250.00, 500_000.00)(discountPercentage)
+        PriceQuotesActor.generate(interestRegistrar, context.self, 250.00, 500000.00)(discountPercentage)
       }
 
     private def discountPercentage(orderTotalRetailPrice: Double) = {
